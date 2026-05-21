@@ -2,24 +2,84 @@
 using System.Data;
 using Microsoft.Data.Sqlite;
 using System.Windows.Forms;
+using System.Collections.Generic;
 
 namespace SchoolJournal
 {
     public partial class TeacherForm : Form
     {
+        private List<string> teacherSubjects;
+
         public TeacherForm()
         {
             InitializeComponent();
-
-            // Подписка на событие закрытия формы
             this.FormClosing += TeacherForm_FormClosing;
         }
 
         private void TeacherForm_Load(object sender, EventArgs e)
         {
             lblTeacherName.Text = LoginForm.CurrentUser.FullName;
+            LoadTeacherSubjects();
             LoadStudents();
             LoadGrades();
+        }
+
+        private void LoadTeacherSubjects()
+        {
+            try
+            {
+                teacherSubjects = new List<string>();
+
+                using (var connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+
+                    string query = @"
+                        SELECT Subject
+                        FROM TeacherSubjects
+                        WHERE TeacherId = @teacherId";
+
+                    using (var command = new SqliteCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@teacherId", LoginForm.CurrentUser.Id);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string subject = reader.GetString(0);
+                                teacherSubjects.Add(subject);
+                            }
+                        }
+                    }
+                }
+
+                // Заполняем ComboBox предметами учителя
+                cmbSubject.Items.Clear();
+                foreach (var subject in teacherSubjects)
+                {
+                    cmbSubject.Items.Add(subject);
+                }
+
+                // Добавляем также стандартные предметы, если список пуст
+                if (cmbSubject.Items.Count == 0)
+                {
+                    string[] defaultSubjects = { "Математика", "Русский язык", "Литература", "Физика", "Химия", "Биология", "История", "Обществознание", "География", "Английский язык", "Физкультура", "Информатика" };
+                    foreach (var subject in defaultSubjects)
+                    {
+                        cmbSubject.Items.Add(subject);
+                    }
+                }
+
+                if (cmbSubject.Items.Count > 0)
+                {
+                    cmbSubject.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка загрузки предметов: {ex.Message}");
+            }
         }
 
         private void LoadStudents()
@@ -31,7 +91,7 @@ namespace SchoolJournal
                     connection.Open();
 
                     string query = @"
-                        SELECT s.Id, u.FullName 
+                        SELECT s.Id, u.FullName, s.Class
                         FROM Students s 
                         INNER JOIN Users u ON s.UserId = u.Id 
                         ORDER BY u.FullName";
@@ -46,7 +106,7 @@ namespace SchoolJournal
                                 cmbStudents.Items.Add(new
                                 {
                                     Id = reader.GetInt32(0),
-                                    Name = reader.GetString(1)
+                                    Name = $"{reader.GetString(1)} (Класс: {reader.GetString(2)})"
                                 });
                             }
 
@@ -71,7 +131,7 @@ namespace SchoolJournal
                     connection.Open();
 
                     string query = @"
-                        SELECT g.Id, u.FullName as StudentName, g.Subject, g.Grade, g.Date
+                        SELECT g.Id, u.FullName as StudentName, g.Subject, g.Grade, g.Date, g.Note
                         FROM Grades g
                         INNER JOIN Students s ON g.StudentId = s.Id
                         INNER JOIN Users u ON s.UserId = u.Id
@@ -87,6 +147,22 @@ namespace SchoolJournal
                             DataTable dt = new DataTable();
                             dt.Load(reader);
                             dataGridViewGrades.DataSource = dt;
+
+                            // Настройка заголовков
+                            if (dataGridViewGrades.Columns.Contains("Id"))
+                                dataGridViewGrades.Columns["Id"].Visible = false;
+                            if (dataGridViewGrades.Columns.Contains("StudentName"))
+                                dataGridViewGrades.Columns["StudentName"].HeaderText = "Ученик";
+                            if (dataGridViewGrades.Columns.Contains("Subject"))
+                                dataGridViewGrades.Columns["Subject"].HeaderText = "Предмет";
+                            if (dataGridViewGrades.Columns.Contains("Grade"))
+                                dataGridViewGrades.Columns["Grade"].HeaderText = "Оценка";
+                            if (dataGridViewGrades.Columns.Contains("Date"))
+                                dataGridViewGrades.Columns["Date"].HeaderText = "Дата";
+                            if (dataGridViewGrades.Columns.Contains("Note"))
+                                dataGridViewGrades.Columns["Note"].HeaderText = "Примечание";
+
+                            dataGridViewGrades.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
                         }
                     }
                 }
@@ -115,8 +191,8 @@ namespace SchoolJournal
                     connection.Open();
 
                     string query = @"
-                        INSERT INTO Grades (StudentId, Subject, Grade, Date, TeacherId)
-                        VALUES (@studentId, @subject, @grade, @date, @teacherId)";
+                        INSERT INTO Grades (StudentId, Subject, Grade, Date, TeacherId, Note)
+                        VALUES (@studentId, @subject, @grade, @date, @teacherId, @note)";
 
                     using (var command = new SqliteCommand(query, connection))
                     {
@@ -125,10 +201,15 @@ namespace SchoolJournal
                         command.Parameters.AddWithValue("@grade", (int)numericGrade.Value);
                         command.Parameters.AddWithValue("@date", DateTime.Now.ToString("yyyy-MM-dd"));
                         command.Parameters.AddWithValue("@teacherId", LoginForm.CurrentUser.Id);
+                        command.Parameters.AddWithValue("@note", string.IsNullOrEmpty(txtNote.Text) ? (object)DBNull.Value : txtNote.Text);
 
                         command.ExecuteNonQuery();
                         MessageBox.Show("Оценка добавлена");
                         LoadGrades();
+
+                        // Очищаем поле примечания
+                        txtNote.Text = "";
+                        numericGrade.Value = 5;
                     }
                 }
             }
@@ -210,7 +291,6 @@ namespace SchoolJournal
 
         private void TeacherForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Полное завершение приложения при закрытии формы
             Application.Exit();
         }
     }

@@ -98,8 +98,12 @@ namespace SchoolJournal
                     var adminForm = new AdminForm();
                     adminForm.Show();
                     break;
+                case "Parent":
+                    var parentForm = new ParentForm();
+                    parentForm.Show();
+                    break;
                 default:
-                    MessageBox.Show("Неизвестная роль пользователя");
+                    MessageBox.Show($"Неизвестная роль пользователя: {CurrentUser.Role}");
                     break;
             }
         }

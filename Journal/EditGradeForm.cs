@@ -80,7 +80,7 @@ namespace SchoolJournal
                     connection.Open();
 
                     string query = @"
-                        SELECT g.StudentId, g.Subject, g.Grade, g.Date
+                        SELECT g.StudentId, g.Subject, g.Grade, g.Date, g.Note
                         FROM Grades g
                         WHERE g.Id = @gradeId";
 
@@ -94,7 +94,6 @@ namespace SchoolJournal
                             {
                                 int studentId = reader.GetInt32(0);
 
-                                // Устанавливаем студента
                                 for (int i = 0; i < cmbStudents.Items.Count; i++)
                                 {
                                     dynamic item = cmbStudents.Items[i];
@@ -105,16 +104,17 @@ namespace SchoolJournal
                                     }
                                 }
 
-                                // Устанавливаем предмет
                                 cmbSubject.Text = reader.GetString(1);
-
-                                // Устанавливаем оценку
                                 numericGrade.Value = reader.GetInt32(2);
 
-                                // Устанавливаем дату
                                 if (DateTime.TryParse(reader.GetString(3), out DateTime date))
                                 {
                                     dtpDate.Value = date;
+                                }
+
+                                if (!reader.IsDBNull(4))
+                                {
+                                    txtNote.Text = reader.GetString(4);
                                 }
                             }
                         }
@@ -146,14 +146,14 @@ namespace SchoolJournal
 
                     if (isEditMode)
                     {
-                        // Обновляем оценку
                         string updateQuery = @"
                             UPDATE Grades 
                             SET StudentId = @studentId, 
                                 Subject = @subject, 
                                 Grade = @grade, 
                                 Date = @date,
-                                TeacherId = @teacherId
+                                TeacherId = @teacherId,
+                                Note = @note
                             WHERE Id = @gradeId";
 
                         using (var command = new SqliteCommand(updateQuery, connection))
@@ -163,6 +163,7 @@ namespace SchoolJournal
                             command.Parameters.AddWithValue("@grade", (int)numericGrade.Value);
                             command.Parameters.AddWithValue("@date", dtpDate.Value.ToString("yyyy-MM-dd"));
                             command.Parameters.AddWithValue("@teacherId", LoginForm.CurrentUser.Id);
+                            command.Parameters.AddWithValue("@note", string.IsNullOrEmpty(txtNote.Text) ? (object)DBNull.Value : txtNote.Text);
                             command.Parameters.AddWithValue("@gradeId", gradeId);
 
                             command.ExecuteNonQuery();
@@ -170,10 +171,9 @@ namespace SchoolJournal
                     }
                     else
                     {
-                        // Добавляем новую оценку
                         string insertQuery = @"
-                            INSERT INTO Grades (StudentId, Subject, Grade, Date, TeacherId)
-                            VALUES (@studentId, @subject, @grade, @date, @teacherId)";
+                            INSERT INTO Grades (StudentId, Subject, Grade, Date, TeacherId, Note)
+                            VALUES (@studentId, @subject, @grade, @date, @teacherId, @note)";
 
                         using (var command = new SqliteCommand(insertQuery, connection))
                         {
@@ -182,6 +182,7 @@ namespace SchoolJournal
                             command.Parameters.AddWithValue("@grade", (int)numericGrade.Value);
                             command.Parameters.AddWithValue("@date", dtpDate.Value.ToString("yyyy-MM-dd"));
                             command.Parameters.AddWithValue("@teacherId", LoginForm.CurrentUser.Id);
+                            command.Parameters.AddWithValue("@note", string.IsNullOrEmpty(txtNote.Text) ? (object)DBNull.Value : txtNote.Text);
 
                             command.ExecuteNonQuery();
                         }

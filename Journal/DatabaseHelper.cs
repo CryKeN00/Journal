@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.IO;
+using System;
 
 public static class DatabaseHelper
 {
@@ -25,7 +26,7 @@ public static class DatabaseHelper
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         Username TEXT UNIQUE NOT NULL,
                         Password TEXT NOT NULL,
-                        Role TEXT NOT NULL CHECK(Role IN ('Student', 'Teacher', 'Admin')),
+                        Role TEXT NOT NULL CHECK(Role IN ('Student', 'Teacher', 'Admin', 'Parent')),
                         FullName TEXT NOT NULL
                     )";
 
@@ -38,6 +39,27 @@ public static class DatabaseHelper
                         FOREIGN KEY (UserId) REFERENCES Users(Id)
                     )";
 
+                // Таблица связей родитель-ученик
+                string createParentStudentsTable = @"
+                    CREATE TABLE ParentStudents (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ParentId INTEGER NOT NULL,
+                        StudentId INTEGER NOT NULL,
+                        FOREIGN KEY (ParentId) REFERENCES Users(Id),
+                        FOREIGN KEY (StudentId) REFERENCES Students(Id),
+                        UNIQUE(ParentId, StudentId)
+                    )";
+
+                // Таблица предметов учителей
+                string createTeacherSubjectsTable = @"
+                    CREATE TABLE TeacherSubjects (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        TeacherId INTEGER NOT NULL,
+                        Subject TEXT NOT NULL,
+                        FOREIGN KEY (TeacherId) REFERENCES Users(Id),
+                        UNIQUE(TeacherId, Subject)
+                    )";
+
                 // Таблица оценок
                 string createGradesTable = @"
                     CREATE TABLE Grades (
@@ -47,6 +69,7 @@ public static class DatabaseHelper
                         Grade INTEGER NOT NULL CHECK(Grade BETWEEN 1 AND 5),
                         Date TEXT NOT NULL,
                         TeacherId INTEGER NOT NULL,
+                        Note TEXT,
                         FOREIGN KEY (StudentId) REFERENCES Students(Id),
                         FOREIGN KEY (TeacherId) REFERENCES Users(Id)
                     )";
@@ -57,6 +80,12 @@ public static class DatabaseHelper
                     command.ExecuteNonQuery();
 
                     command.CommandText = createStudentsTable;
+                    command.ExecuteNonQuery();
+
+                    command.CommandText = createParentStudentsTable;
+                    command.ExecuteNonQuery();
+
+                    command.CommandText = createTeacherSubjectsTable;
                     command.ExecuteNonQuery();
 
                     command.CommandText = createGradesTable;
